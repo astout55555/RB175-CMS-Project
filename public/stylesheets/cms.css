@@ -1,0 +1,16 @@
+html {
+  font-family: Arial, sans-serif;
+}
+
+.message {
+  background-color: yellow;
+}
+
+.inline {
+  display: inline;
+}
+
+.user_status label {
+  font-style: italic;
+  font-size: 0.9rem;
+}
