@@ -3,7 +3,8 @@ require "sinatra/reloader" if development?
 require "tilt/erubis"
 require "sinatra/content_for"
 require "redcarpet"
-# require "fileutils"
+require "psych"
+require "bcrypt"
 
 configure do
   enable :sessions
@@ -25,8 +26,20 @@ def data_path
     File.expand_path("../data", __FILE__) # or just `/data`
   end
 end
+
+def credentials_path
+  if ENV["RACK_ENV"] == "test"
+    File.expand_path("../test/users.yml", __FILE__)
+  else
+    File.expand_path("../users.yml", __FILE__)
+  end
+end
 # relative paths are based on where the program is called from...
 # so instead we need absolute paths based on the location of the file itself
+
+def load_user_credentials
+  Psych.load_file(credentials_path)
+end
 
 def render_markdown(file_text)
   markdown = Redcarpet::Markdown.new(Redcarpet::Render::HTML)
@@ -49,11 +62,25 @@ def valid_filename?(filename)
 end
 
 def valid_credentials?(username, password)
-  username == "admin" && password == "secret"
+  authorized_users = load_user_credentials
+  if authorized_users.key?(username)
+    BCrypt::Password.new(authorized_users[username]) == password
+  else
+    false
+  end
+end
+
+def require_signin
+  unless user_signed_in?
+    session[:message] = "You must be signed in to do that."
+    redirect "/"
+  end
 end
 
 helpers do
-  
+  def user_signed_in?
+    session.key?(:username)
+  end
 end
 
 before do
@@ -79,7 +106,6 @@ post "/users/signin" do
     redirect "/"
   else
     @username = params[:username]
-    @password = params[:password]
     session[:message] = "Invalid credentials"
     status 422
     erb :sign_in
@@ -93,10 +119,13 @@ post "/users/signout" do
 end
 
 get "/new" do
+  require_signin
   erb :new
 end
 
 post "/new" do
+  require_signin
+
   if valid_filename?(params[:filename])
     file_path = File.join(data_path, params[:filename])
     File.open(file_path, 'w') do |file|
@@ -123,6 +152,8 @@ get "/:filename" do
 end
 
 get "/:filename/edit" do
+  require_signin
+
   file_path = File.join(data_path, params[:filename])
 
   if File.file?(file_path)
@@ -136,6 +167,8 @@ get "/:filename/edit" do
 end
 
 post "/:filename/edit" do
+  require_signin
+
   file_path = File.join(data_path, params[:filename])
   File.open(file_path, 'w') do |file|
     file.write(params[:contents])
@@ -146,6 +179,8 @@ post "/:filename/edit" do
 end
 
 post "/:filename/delete" do
+  require_signin
+
   filepath = File.join(data_path, params[:filename])
   File.delete(filepath)
 
