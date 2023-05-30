@@ -49,11 +49,11 @@ end
 def load_file_content(path)
   file_contents = File.read(path)
   case File.extname(path)
+  when ".md"
+    erb render_markdown(file_contents)
   when ".txt"
     headers["Content-Type"] = "text/plain"
     file_contents
-  when ".md"
-    erb render_markdown(file_contents)
   end
 end
 
@@ -141,7 +141,7 @@ post "/new" do
 end
 
 get "/:filename" do
-  file_path = File.join(data_path, params[:filename])
+  file_path = File.join(data_path, File.basename(params[:filename]))
 
   if File.file?(file_path)
     load_file_content(file_path)
