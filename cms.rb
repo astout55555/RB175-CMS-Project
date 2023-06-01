@@ -58,9 +58,27 @@ def load_file_content(path)
 end
 
 def valid_filename?(filename)
-  filename.match?(/\..*/)
+  filename.match?(/\.(txt|md)/)
 end
 
+def format_for_yaml(users_hash)
+  formatted_string = "{\n  "
+
+  users_hash.each_with_index do |(user, pw), idx|
+    to_append = "#{user}: #{pw}"
+    if idx == users_hash.size - 1
+      to_append << "\n}\n"
+    else
+      to_append << ",\n  "
+    end
+
+    formatted_string << to_append
+  end
+
+  formatted_string
+end
+
+### insecure note for development/practice purposes: all Zelda character passwords are hashed from "#{username}password" ###
 def valid_credentials?(username, password)
   authorized_users = load_user_credentials
   if authorized_users.key?(username)
@@ -118,6 +136,27 @@ post "/users/signout" do
   redirect "/"
 end
 
+get "/users/register" do
+  erb :register
+end
+
+post "/users/register" do
+  new_user = params[:username]
+  authorized_users = load_user_credentials
+  hashed = BCrypt::Password.create(params[:password]).to_s # use #to_s to avoid adding a Password object
+  authorized_users[new_user] = hashed
+
+  # take modified hash and write it back to 'users.yml'
+  updated_users = format_for_yaml(authorized_users)
+  File.open(credentials_path, 'w+') do |file|
+    file.write(updated_users)
+  end
+
+  session[:username] = new_user
+  session[:message] = "Welcome aboard, #{session[:username]}!"
+  redirect "/"
+end
+
 get "/new" do
   require_signin
   erb :new
@@ -126,22 +165,22 @@ end
 post "/new" do
   require_signin
 
+  filename = File.basename(params[:filename])
   if valid_filename?(params[:filename])
-    file_path = File.join(data_path, params[:filename])
-    File.open(file_path, 'w') do |file|
-      file.write(params[:contents])
-    end
+    file_path = File.join(data_path, filename)
+    new_file = File.new(file_path, 'w+')
   
-    session[:message] = "#{params[:filename]} has been created."
+    session[:message] = "#{filename} has been created."
     redirect "/"
   else
-    session[:message] = "A filename and extension are required."
+    session[:message] = "A filename and either .txt or .md extension are required."
     redirect "/new"
   end
 end
 
 get "/:filename" do
-  file_path = File.join(data_path, File.basename(params[:filename]))
+  filename = File.basename(params[:filename])
+  file_path = File.join(data_path, filename)
 
   if File.file?(file_path)
     load_file_content(file_path)
@@ -154,14 +193,15 @@ end
 get "/:filename/edit" do
   require_signin
 
-  file_path = File.join(data_path, params[:filename])
+  filename = File.basename(params[:filename])
+  file_path = File.join(data_path, filename)
 
   if File.file?(file_path)
-    @file_name = File.basename(file_path)
+    @file_name = filename
     @content = File.read(file_path)
     erb :edit
   else
-    session[:message] = "#{params[:filename]} does not exist."
+    session[:message] = "#{filename} does not exist."
     redirect "/"
   end
 end
@@ -169,21 +209,40 @@ end
 post "/:filename/edit" do
   require_signin
 
-  file_path = File.join(data_path, params[:filename])
+  filename = File.basename(params[:filename])
+  file_path = File.join(data_path, filename)
   File.open(file_path, 'w') do |file|
     file.write(params[:contents])
   end
 
-  session[:message] = "#{params[:filename]} has been updated."
+  session[:message] = "#{filename} has been updated."
   redirect "/"
 end
 
 post "/:filename/delete" do
   require_signin
 
-  filepath = File.join(data_path, params[:filename])
-  File.delete(filepath)
+  filename = File.basename(params[:filename])
+  file_path = File.join(data_path, filename)
+  File.delete(file_path)
 
-  session[:message] = "#{params[:filename]} has been deleted."
+  session[:message] = "#{filename} has been deleted."
+  redirect "/"
+end
+
+post "/:filename/duplicate" do
+  require_signin
+
+  filename = File.basename(params[:filename])
+  file_path = File.join(data_path, filename)
+  contents = File.read(file_path)
+
+  duplicate_file_name = "copy_of_#{filename}"
+  duplicate_path = File.join(data_path, duplicate_file_name)
+  File.open(duplicate_path, 'w+') do |file|
+    file.write(contents)
+  end
+
+  session[:message] = "#{filename} has been duplicated."
   redirect "/"
 end

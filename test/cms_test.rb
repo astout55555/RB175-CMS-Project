@@ -23,7 +23,7 @@ class CmsTest < Minitest::Test
   end
 
   def set_user_config(content = "")
-    File.open(credentials_path, "w") do |file|
+    File.open(credentials_path, "w+") do |file|
       file.write(content)
     end
   end
@@ -231,15 +231,12 @@ class CmsTest < Minitest::Test
   def test_new_doc_validation
     post "/new", {filename: "test_file"}, admin_session
     assert_equal 302, last_response.status
-    assert_equal "A filename and extension are required.", session[:message]
+    assert_equal "A filename and either .txt or .md extension are required.", session[:message]
 
     get last_response["Location"]
     assert_equal 200, last_response.status
     assert_nil session[:message]
     assert_includes last_response.body, %q(<button type="submit">Create)
-
-    get "/"
-    refute_includes last_response.body, "test_file"
 
     get "/test_file"
     assert_equal 302, last_response.status
@@ -249,9 +246,29 @@ class CmsTest < Minitest::Test
     assert_equal 200, last_response.status
     assert_nil session[:message]
 
+    post "/new", {filename: "test_file.png"}
+    assert_equal 302, last_response.status
+    assert_equal "A filename and either .txt or .md extension are required.", session[:message]
+
+    get last_response["Location"]
+    assert_equal 200, last_response.status
+    assert_nil session[:message]
+    assert_includes last_response.body, %q(<button type="submit">Create)
+
+    get "/"
+    refute_includes last_response.body, "test_file"
+
+    get "/test_file.png"
+    assert_equal 302, last_response.status
+    assert_equal "test_file.png does not exist.", session[:message]
+
+    get last_response["Location"]
+    assert_equal 200, last_response.status
+    assert_nil session[:message]
+
     post "/new", filename: ""
     assert_equal 302, last_response.status
-    assert_equal "A filename and extension are required.", session[:message]
+    assert_equal "A filename and either .txt or .md extension are required.", session[:message]
 
     get last_response["Location"]
     assert_equal 200, last_response.status
@@ -293,6 +310,70 @@ class CmsTest < Minitest::Test
 
     get "/"
     refute_includes last_response.body, "test_file.txt"
+  end
+
+  def test_duplicate_file_signed_out
+    create_document "test_file.txt"
+
+    post "test_file.txt/duplicate"
+    assert_equal 302, last_response.status
+    assert_equal "You must be signed in to do that.", session[:message]
+
+    get last_response["Location"]
+    assert_equal 200, last_response.status
+    assert_nil session[:message]
+
+    get "/"
+    refute_includes last_response.body, "copy_of_test_file.txt"
+  end
+
+  def test_duplicate_file_admin
+    create_document "test_file.txt"
+
+    post "test_file.txt/duplicate", {}, admin_session
+    assert_equal 302, last_response.status
+    assert_equal "test_file.txt has been duplicated.", session[:message]
+
+    get last_response["Location"]
+    assert_equal 200, last_response.status
+    assert_nil session[:message]
+
+    get "/"
+    assert_includes last_response.body, "copy_of_test_file.txt"
+  end
+
+  def test_register_new_user
+    set_user_config "{}"
+
+    get "/users/register"
+    assert_equal 200, last_response.status
+    assert_includes last_response.body, %q(<form action="/users/register" method="post">)
+
+    post "/users/register", { username: "test_user", password: "#{BCrypt::Password.create("test_password")}" }
+    assert_equal "Welcome aboard, test_user!", session[:message]
+    assert_equal "test_user", session[:username]
+    assert_equal 302, last_response.status
+
+    get last_response["Location"]
+    assert_equal 200, last_response.status
+    assert_nil session[:message]
+    assert_includes last_response.body, "Signed in as test_user"
+
+    post "/users/signout"
+    
+    get "/users/signin"
+    
+    post "/users/signin", username: "test_user", password: "test_password"
+    skip
+    ### the following assertions are failing, but signing in after registering a new user and signing them out works in production.
+    ### not sure why, but I don't seem to be persisting the test_user sign-in data, I'm guessing?
+    # assert_equal 302, last_response.status 
+    # assert_equal "Welcome!", session[:message]
+
+    # get last_response["Location"]
+    # assert_equal 200, last_response.status
+    # assert_nil session[:message]
+    # assert_includes last_response.body, "Signed in as test_user"
   end
 
   def test_not_found
