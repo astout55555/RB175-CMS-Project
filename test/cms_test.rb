@@ -17,12 +17,12 @@ class CmsTest < Minitest::Test
   end
 
   def create_document(name, content = "")
-    File.open(File.join(data_path, name), "w") do |file|
+    File.open(File.join(data_path, name), "w+") do |file|
       file.write(content)
     end
   end
 
-  def set_user_config(content = "")
+  def write_users_yml_file(content = "")
     File.open(credentials_path, "w+") do |file|
       file.write(content)
     end
@@ -60,7 +60,7 @@ class CmsTest < Minitest::Test
   end
 
   def test_sign_in_valid
-    set_user_config "{ test_user: #{BCrypt::Password.create("test_password")} }"
+    write_users_yml_file "{ test_user: #{BCrypt::Password.create("test_password")} }"
 
     post "/users/signin", username: "test_user", password: "test_password"
     assert_equal 302, last_response.status
@@ -73,7 +73,7 @@ class CmsTest < Minitest::Test
   end
 
   def test_invalid_sign_in
-    set_user_config "{ test_user: #{BCrypt::Password.create("test_password")} }"
+    write_users_yml_file "{ test_user: #{BCrypt::Password.create("test_password")} }"
 
     post "/users/signin", username: "test_badname", password: "test_badpw"
     assert_equal 422, last_response.status
@@ -343,13 +343,13 @@ class CmsTest < Minitest::Test
   end
 
   def test_register_new_user
-    set_user_config "{}"
+    write_users_yml_file "{}"
 
     get "/users/register"
     assert_equal 200, last_response.status
     assert_includes last_response.body, %q(<form action="/users/register" method="post">)
 
-    post "/users/register", { username: "test_user", password: "#{BCrypt::Password.create("test_password")}" }
+    post "/users/register", { username: "test_user", password: "test_password" }
     assert_equal "Welcome aboard, test_user!", session[:message]
     assert_equal "test_user", session[:username]
     assert_equal 302, last_response.status
@@ -363,17 +363,14 @@ class CmsTest < Minitest::Test
     
     get "/users/signin"
     
-    post "/users/signin", username: "test_user", password: "test_password"
-    skip
-    ### the following assertions are failing, but signing in after registering a new user and signing them out works in production.
-    ### not sure why, but I don't seem to be persisting the test_user sign-in data, I'm guessing?
-    # assert_equal 302, last_response.status 
-    # assert_equal "Welcome!", session[:message]
+    post "/users/signin", { username: "test_user", password: "test_password" }
+    assert_equal 302, last_response.status
+    assert_equal "Welcome!", session[:message]
 
-    # get last_response["Location"]
-    # assert_equal 200, last_response.status
-    # assert_nil session[:message]
-    # assert_includes last_response.body, "Signed in as test_user"
+    get last_response["Location"]
+    assert_equal 200, last_response.status
+    assert_nil session[:message]
+    assert_includes last_response.body, "Signed in as test_user"
   end
 
   def test_not_found

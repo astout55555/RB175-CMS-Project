@@ -143,7 +143,7 @@ end
 post "/users/register" do
   new_user = params[:username]
   authorized_users = load_user_credentials
-  hashed = BCrypt::Password.create(params[:password]).to_s # use #to_s to avoid adding a Password object
+  hashed = BCrypt::Password.create(params[:password])
   authorized_users[new_user] = hashed
 
   # take modified hash and write it back to 'users.yml'
