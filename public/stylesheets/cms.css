@@ -14,3 +14,8 @@ html {
   font-style: italic;
   font-size: 0.9rem;
 }
+
+.cancel {
+  color: black;
+  text-decoration: none;
+}

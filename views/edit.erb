@@ -1,6 +1,8 @@
-<p>Edit content of <%= @file_name %>:</p>
-<form action="/<%= @file_name %>/edit" method="post">
-  <textarea id="contents" name="contents" rows="20" cols="100"><%= @content %></textarea>
-  <br>
+<form action="/<%= @file_name %>/edit" method="post" enctype="multipart/form-data">
+  <p>Edit content of <%= @file_name %>:</p>
+  <textarea id="contents" name="contents" rows="20" cols="100"><%= @content %></textarea><br>
   <button type="submit">Save Changes</button>
 </form>
+
+<br>
+<button><a class="cancel" href="/">Cancel</a></button>

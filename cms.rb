@@ -54,11 +54,20 @@ def load_file_content(path)
   when ".txt"
     headers["Content-Type"] = "text/plain"
     file_contents
+  when ".jpg"
+    headers["Content-Type"] = "image/jpeg"
+    file_contents
+  when ".jpeg"
+    headers["Content-Type"] = "image/jpeg"
+    file_contents
+  when ".png"
+    headers["Content-Type"] = "image/png"
+    file_contents
   end
 end
 
 def valid_filename?(filename)
-  filename.match?(/\.(txt|md)/)
+  filename.match?(/\.(txt|md|jpg|jpeg|png)/)
 end
 
 def format_for_yaml(users_hash)
@@ -120,7 +129,7 @@ end
 post "/users/signin" do
   if valid_credentials?(params[:username], params[:password])
     session[:username] = params[:username]
-    session[:message] = "Welcome!"
+    session[:message] = "Welcome, #{session[:username]}!"
     redirect "/"
   else
     @username = params[:username]
@@ -168,12 +177,21 @@ post "/new" do
   filename = File.basename(params[:filename])
   if valid_filename?(params[:filename])
     file_path = File.join(data_path, filename)
-    new_file = File.new(file_path, 'w+')
+
+    if filename.match?(/\.(jpeg|jpg|png)/)
+      File.open(file_path, 'wb') do |file|
+        file.write(params[:image][:tempfile].read)
+      end
+    else
+      File.open(file_path, 'w+') do |file|
+        file.write(params[:image])
+      end
+    end
   
     session[:message] = "#{filename} has been created."
     redirect "/"
   else
-    session[:message] = "A filename and either .txt or .md extension are required."
+    session[:message] = "A filename and valid extension are required."
     redirect "/new"
   end
 end
@@ -197,9 +215,14 @@ get "/:filename/edit" do
   file_path = File.join(data_path, filename)
 
   if File.file?(file_path)
-    @file_name = filename
-    @content = File.read(file_path)
-    erb :edit
+    if filename.match?(/\.(txt|md)/)
+      @file_name = filename
+      @content = File.read(file_path)
+      erb :edit
+    else
+      session[:message] = "Cannot edit image files."
+      redirect "/"
+    end
   else
     session[:message] = "#{filename} does not exist."
     redirect "/"
@@ -210,12 +233,29 @@ post "/:filename/edit" do
   require_signin
 
   filename = File.basename(params[:filename])
-  file_path = File.join(data_path, filename)
-  File.open(file_path, 'w') do |file|
+
+  if filename.start_with?(/v[0-9]+_/)
+    filename_chunks = filename.split('_')
+    version_prepended = filename_chunks.shift
+    og_filename = if filename_chunks.size > 1
+                    filename_chunks.join('_')
+                  else
+                    filename_chunks.first
+                  end
+    old_version_num = version_prepended[1..-1].to_i
+    new_filename = "v#{old_version_num + 1}_#{og_filename}"
+    session[:message] = "#{og_filename} has been updated."
+  else
+    new_filename = "v2_#{filename}"
+    session[:message] = "#{filename} has been updated."
+  end
+
+  file_path = File.join(data_path, new_filename)
+
+  File.open(file_path, 'w+') do |file|
     file.write(params[:contents])
   end
 
-  session[:message] = "#{filename} has been updated."
   redirect "/"
 end
 

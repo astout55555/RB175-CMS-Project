@@ -64,7 +64,7 @@ class CmsTest < Minitest::Test
 
     post "/users/signin", username: "test_user", password: "test_password"
     assert_equal 302, last_response.status
-    assert_equal "Welcome!", session[:message]
+    assert_equal "Welcome, test_user!", session[:message]
 
     get last_response["Location"]
     assert_equal 200, last_response.status
@@ -145,7 +145,7 @@ class CmsTest < Minitest::Test
     assert_equal 200, last_response.status
 
     assert_includes last_response.body, "Edit content of changes.txt"
-    assert_includes last_response.body, %q(<form action="/changes.txt/edit" method="post">)
+    assert_includes last_response.body, %q(<form action="/changes.txt/edit" method="post")
   end
 
   def test_updating_document_signed_out
@@ -166,6 +166,8 @@ class CmsTest < Minitest::Test
   end
 
   def test_updating_document_admin
+    create_document "changes.txt", "Ooh, yeah (Ooh)"
+
     post "/changes.txt/edit", {contents: "new content"}, admin_session
     assert_equal 302, last_response.status
     assert_equal "changes.txt has been updated.", session[:message]
@@ -173,8 +175,13 @@ class CmsTest < Minitest::Test
     get last_response["Location"]
     assert_equal 200, last_response.status
     assert_nil session[:message]
+    assert_includes last_response.body, "v2_changes.txt"
 
     get "/changes.txt"
+    assert_equal 200, last_response.status
+    assert_includes last_response.body, "Ooh, yeah (Ooh)"
+
+    get "/v2_changes.txt"
     assert_equal 200, last_response.status
     assert_includes last_response.body, "new content"
   end
@@ -231,7 +238,7 @@ class CmsTest < Minitest::Test
   def test_new_doc_validation
     post "/new", {filename: "test_file"}, admin_session
     assert_equal 302, last_response.status
-    assert_equal "A filename and either .txt or .md extension are required.", session[:message]
+    assert_equal "A filename and valid extension are required.", session[:message]
 
     get last_response["Location"]
     assert_equal 200, last_response.status
@@ -246,9 +253,9 @@ class CmsTest < Minitest::Test
     assert_equal 200, last_response.status
     assert_nil session[:message]
 
-    post "/new", {filename: "test_file.png"}
+    post "/new", {filename: "test_file.zip"}
     assert_equal 302, last_response.status
-    assert_equal "A filename and either .txt or .md extension are required.", session[:message]
+    assert_equal "A filename and valid extension are required.", session[:message]
 
     get last_response["Location"]
     assert_equal 200, last_response.status
@@ -258,9 +265,9 @@ class CmsTest < Minitest::Test
     get "/"
     refute_includes last_response.body, "test_file"
 
-    get "/test_file.png"
+    get "/test_file.zip"
     assert_equal 302, last_response.status
-    assert_equal "test_file.png does not exist.", session[:message]
+    assert_equal "test_file.zip does not exist.", session[:message]
 
     get last_response["Location"]
     assert_equal 200, last_response.status
@@ -268,7 +275,7 @@ class CmsTest < Minitest::Test
 
     post "/new", filename: ""
     assert_equal 302, last_response.status
-    assert_equal "A filename and either .txt or .md extension are required.", session[:message]
+    assert_equal "A filename and valid extension are required.", session[:message]
 
     get last_response["Location"]
     assert_equal 200, last_response.status
@@ -365,7 +372,7 @@ class CmsTest < Minitest::Test
     
     post "/users/signin", { username: "test_user", password: "test_password" }
     assert_equal 302, last_response.status
-    assert_equal "Welcome!", session[:message]
+    assert_equal "Welcome, test_user!", session[:message]
 
     get last_response["Location"]
     assert_equal 200, last_response.status
